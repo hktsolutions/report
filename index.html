@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Báo Cáo Helpdesk Tổng Hợp</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- PapaParse -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: #f8fafc; }
+        
+        /* Tùy chỉnh thanh cuộn ngang/dọc */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Header dính */
+        .sticky-header th { position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        
+        /* Hiệu ứng mũi tên xổ xuống */
+        .rotate-180 { transform: rotate(180deg); }
+        .transition-transform { transition: transform 0.3s ease; }
+        
+        /* Ẩn/Hiện nội dung xổ xuống có animation nhẹ */
+        .detail-row { display: none; }
+        .detail-row.open { display: table-row; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="text-gray-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header Cố định -->
+    <div class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center shrink-0">
+        <div>
+            <h1 class="text-lg md:text-xl font-bold"><i class="fa-solid fa-list-check mr-2"></i> Báo Cáo Helpdesk</h1>
+            <p class="text-xs md:text-sm text-blue-200 mt-1" id="current-date">Đang cập nhật...</p>
+        </div>
+        <button onclick="fetchData()" class="bg-blue-800 hover:bg-blue-900 px-3 py-2 rounded-lg text-sm font-medium shadow flex items-center transition">
+            <i class="fa-solid fa-rotate-right md:mr-2"></i> <span class="hidden md:inline">Làm mới</span>
+        </button>
+    </div>
+
+    <!-- Màn hình chờ Load -->
+    <div id="loader" class="flex-1 flex flex-col justify-center items-center">
+        <i class="fa-solid fa-circle-notch fa-spin text-4xl md:text-5xl text-blue-500 mb-4"></i>
+        <p class="text-blue-600 font-medium mt-2">Đang tải dữ liệu báo cáo...</p>
+    </div>
+
+    <!-- Nội dung chính -->
+    <div id="dashboard" class="hidden flex-1 flex flex-col p-2 md:p-4 overflow-hidden gap-4">
+        
+        <!-- SECTION 1: SỐ LIỆU TỔNG QUAN -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 shrink-0">
+            <div class="bg-white p-3 md:p-4 rounded-xl shadow border border-gray-100 flex justify-between items-center">
+                <div><p class="text-[10px] md:text-xs text-gray-500 font-bold uppercase">Tổng công việc</p><p class="text-xl md:text-2xl font-black text-blue-600" id="c-total">0</p></div>
+            </div>
+            <div class="bg-white p-3 md:p-4 rounded-xl shadow border border-gray-100 flex justify-between items-center">
+                <div><p class="text-[10px] md:text-xs text-gray-500 font-bold uppercase">Đã hoàn tất</p><p class="text-xl md:text-2xl font-black text-green-500" id="c-done">0</p></div>
+            </div>
+            <div class="bg-white p-3 md:p-4 rounded-xl shadow border border-gray-100 flex justify-between items-center">
+                <div><p class="text-[10px] md:text-xs text-gray-500 font-bold uppercase">Chờ xác nhận</p><p class="text-xl md:text-2xl font-black text-orange-500" id="c-wait">0</p></div>
+            </div>
+            <div class="bg-white p-3 md:p-4 rounded-xl shadow border border-gray-100 flex justify-between items-center">
+                <div><p class="text-[10px] md:text-xs text-gray-500 font-bold uppercase">Chưa hoàn tất</p><p class="text-xl md:text-2xl font-black text-red-500" id="c-pending">0</p></div>
+            </div>
+        </div>
+
+        <!-- SECTION 2: BẢNG DỮ LIỆU CÓ THỂ XỔ XUỐNG -->
+        <div class="flex-1 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
+            <div class="overflow-auto flex-1 relative">
+                <table class="w-max min-w-full text-sm text-left">
+                    <thead class="text-xs text-gray-600 uppercase bg-blue-50 sticky-header whitespace-nowrap">
+                        <tr>
+                            <th class="px-3 py-3 font-semibold border-b border-gray-200 w-8 text-center"></th> <!-- Icon mũi tên -->
+                            <th class="px-3 py-3 font-semibold border-b border-gray-200 min-w-[100px] max-w-[120px]">Công ty / Khách sạn</th>
+                            <th class="px-3 py-3 font-semibold border-b border-gray-200">Người yêu cầu</th>
+                            <th class="px-3 py-3 font-semibold border-b border-gray-200 min-w-[200px] max-w-[350px]">Nội dung yêu cầu</th>
+                            <th class="px-3 py-3 font-semibold border-b border-gray-200">Thời gian tạo</th>
+                            <th class="px-3 py-3 font-semibold border-b border-gray-200">CS Phản hồi</th>
+                            <th class="px-3 py-3 font-semibold border-b border-gray-200">KT Hoàn tất</th>
+                            <th class="px-3 py-3 font-semibold border-b border-gray-200 text-center">Trạng thái</th>
+                            <!-- Cột Đánh giá thu hẹp tối đa -->
+                            <th class="px-2 py-3 font-semibold border-b border-gray-200 text-center w-[80px]">Đánh giá KH</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="divide-y divide-gray-100">
+                        <!-- Dữ liệu render bằng JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Link CSV Public từ Google Sheets
+        const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS5-_bSm-aUrfpFWhHDu-LDlcD_MNIgu0fUp307z2JBGUTqvvhQC2_2oXvXBPU1wnu7QwzyYTm2VoC5/pub?gid=0&single=true&output=csv';
+
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('current-date').innerText = now.toLocaleDateString('vi-VN') + ' ' + now.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'});
+        }
+
+        function fetchData() {
+            updateTime();
+            document.getElementById('loader').classList.remove('hidden');
+            document.getElementById('dashboard').classList.add('hidden');
+
+            Papa.parse(CSV_URL + '&t=' + new Date().getTime(), { 
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    processData(results.data);
+                },
+                error: function(err) {
+                    alert('Lỗi kết nối dữ liệu. Vui lòng thử lại sau.');
+                    console.error(err);
+                }
+            });
+        }
+
+        // Xử lý Xổ xuống (Accordion) & Bung chữ (Nội dung)
+        function toggleDetail(id) {
+            const detailRow = document.getElementById(`detail-${id}`);
+            const icon = document.getElementById(`icon-${id}`);
+            const desc = document.getElementById(`desc-${id}`); // Lấy ô Nội dung yêu cầu
+            
+            if (detailRow.classList.contains('open')) {
+                // Đóng hàng phụ
+                detailRow.classList.remove('open');
+                icon.classList.remove('rotate-180');
+                // Thu gọn lại nội dung (thêm truncate, xóa xuống dòng)
+                desc.classList.add('truncate');
+                desc.classList.remove('whitespace-normal');
+            } else {
+                // Mở hàng phụ
+                detailRow.classList.add('open');
+                icon.classList.add('rotate-180');
+                // Bung chữ Nội dung (xóa truncate, cho phép xuống dòng)
+                desc.classList.remove('truncate');
+                desc.classList.add('whitespace-normal');
+            }
+        }
+
+        // Render Dữ liệu
+        function processData(data) {
+            let counts = { total: 0, done: 0, wait: 0, pending: 0 };
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            data.forEach((row, index) => {
+                if(Object.keys(row).length === 0 || !row['Công ty/Khách sạn']) return; 
+                
+                counts.total++;
+                
+                // Logic đếm Trạng thái và Phân màu
+                let status = (row['Trạng thái'] || '').trim();
+                let statusLower = status.toLowerCase();
+                let badgeClass = 'bg-gray-100 text-gray-600 border border-gray-200 font-medium'; 
+                
+                if (statusLower.includes('đã hoàn thành') || statusLower.includes('closed')) {
+                    counts.done++;
+                    badgeClass = 'bg-green-100 text-green-700 font-bold';
+                } else if (statusLower.includes('xác nhận')) { // Đang xác nhận, chờ xác nhận
+                    counts.wait++;
+                    badgeClass = 'bg-orange-100 text-orange-700 font-bold';
+                } else if (statusLower.includes('đang xử lý') || statusLower.includes('progress')) {
+                    counts.pending++;
+                    badgeClass = 'bg-blue-100 text-blue-700 font-bold';
+                } else if (statusLower.includes('đang cập nhật')) {
+                    counts.pending++;
+                    badgeClass = 'bg-purple-100 text-purple-700 font-bold';
+                } else if (statusLower.includes('mở') || statusLower.includes('open')) {
+                    counts.pending++;
+                    badgeClass = 'bg-yellow-100 text-yellow-700 font-bold';
+                } else {
+                    counts.pending++;
+                    badgeClass = 'bg-red-100 text-red-600 font-bold';
+                }
+
+                const s = (col) => row[col] && row[col].trim() !== '' ? row[col] : '-';
+
+                // --- HÀNG 1: THÔNG TIN CHÍNH (Có thể click để mở rộng ô Nội dung & hiện hàng phụ) ---
+                let mainRow = `
+                    <tr class="hover:bg-blue-50/50 transition-colors cursor-pointer border-b border-gray-100" onclick="toggleDetail(${index})">
+                        <td class="px-3 py-3 text-center text-blue-400 whitespace-nowrap">
+                            <i class="fa-solid fa-chevron-down transition-transform" id="icon-${index}"></i>
+                        </td>
+                        <!-- Cột Công ty: Font nhỏ (text-xs), in đậm nhẹ -->
+                        <td class="px-3 py-3 text-xs font-semibold text-blue-900 max-w-[120px] truncate whitespace-nowrap" title="${s('Công ty/Khách sạn')}">${s('Công ty/Khách sạn')}</td>
+                        
+                        <!-- Cột Người yêu cầu: Font nhỏ (text-xs) -->
+                        <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${s('Người yêu cầu')}</td>
+                        
+                        <!-- Ô Nội dung yêu cầu: Font nhỏ (text-xs), BỎ in đậm (text-gray-800 thay vì font-medium) -->
+                        <td class="px-3 py-3 text-xs text-gray-800 max-w-[200px] md:max-w-[300px] truncate transition-all duration-300" id="desc-${index}" title="Bấm để xem chi tiết">
+                            ${s('Nội dung yêu cầu')}
+                        </td>
+                        
+                        <td class="px-3 py-3 text-gray-500 text-[11px] whitespace-nowrap">${s('Thời gian yêu cầu')}</td>
+                        <td class="px-3 py-3 text-gray-500 text-[11px] whitespace-nowrap">${s('Thời gian CS phản hồi')}</td>
+                        <td class="px-3 py-3 text-gray-500 text-[11px] whitespace-nowrap">${s('Thời gian kỹ thuật hoàn tất')}</td>
+                        
+                        <!-- Cột Trạng thái: Font nhỏ hơn (text-[10px] thay vì text-[11px]) -->
+                        <td class="px-3 py-3 text-center whitespace-nowrap">
+                            <span class="px-2 py-1 rounded text-[10px] uppercase tracking-wide ${badgeClass}">${status || 'Trống'}</span>
+                        </td>
+                        
+                        <!-- Ô Đánh giá: Hẹp lại -->
+                        <td class="px-2 py-3 font-medium text-orange-400 text-center whitespace-nowrap w-[80px]">
+                            ${s('Đánh giá của KH') !== '-' ? `<i class="fa-solid fa-star text-[10px]"></i> <span class="text-xs">${s('Đánh giá của KH')}</span>` : '-'}
+                        </td>
+                    </tr>
+                `;
+
+                // --- HÀNG 2: THÔNG TIN PHỤ (ẨN, XỔ XUỐNG KHI BẤM) ---
+                const formatSla = (val) => {
+                    if(val === '-') return '-';
+                    if(val.toLowerCase().includes('đạt')) return `<span class="text-green-600"><i class="fa-solid fa-check mr-1"></i>${val}</span>`;
+                    return `<span class="text-red-500"><i class="fa-solid fa-triangle-exclamation mr-1"></i>${val}</span>`;
+                }
+
+                let detailRow = `
+                    <tr id="detail-${index}" class="detail-row bg-slate-50/80 border-b border-gray-300">
+                        <!-- Colspan 9 để trải dài hết chiều ngang của bảng -->
+                        <td colspan="9" class="p-0">
+                            <div class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-[13px] text-gray-600 shadow-inner">
+                                <div class="space-y-2">
+                                    <p><span class="text-gray-400 inline-block w-24">Ticket ID:</span> <span class="font-mono text-blue-600 font-semibold">${s('Ticket ID')}</span></p>
+                                    <p><span class="text-gray-400 inline-block w-24">Mức độ:</span> <span class="font-medium text-gray-800">${s('Mức độ')}</span></p>
+                                </div>
+                                <div class="space-y-2">
+                                    <p><span class="text-gray-400 inline-block w-24">Hạng mục:</span> <span class="font-medium text-gray-800">${s('Hạng mục')}</span></p>
+                                    <p><span class="text-gray-400 inline-block w-24">Phương thức:</span> <span class="font-medium text-gray-800">${s('Phương thức')}</span></p>
+                                </div>
+                                <div class="space-y-2">
+                                    <p><span class="text-gray-400 inline-block w-24">NV Hỗ trợ:</span> <span class="font-medium text-blue-700"><i class="fa-solid fa-user-gear mr-1"></i>${s('Nhân viên hỗ trợ')}</span></p>
+                                    <p><span class="text-gray-400 inline-block w-24">SLA CS:</span> ${formatSla(s('SLA CS'))}</p>
+                                    <p><span class="text-gray-400 inline-block w-24">SLA Kỹ thuật:</span> ${formatSla(s('SLA kỹ thuật'))}</p>
+                                </div>
+                                <div class="space-y-1">
+                                    <p class="text-gray-400 mb-1">Phản hồi của KH:</p>
+                                    <div class="bg-white p-2 rounded border border-gray-200 italic ${s('Phản hồi của KH') !== '-' ? 'text-gray-800' : 'text-gray-400'} min-h-[40px]">
+                                        ${s('Phản hồi của KH')}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+
+                tbody.innerHTML += mainRow + detailRow;
+            });
+
+            // Gán số liệu vào Section 1
+            document.getElementById('c-total').innerText = counts.total;
+            document.getElementById('c-done').innerText = counts.done;
+            document.getElementById('c-wait').innerText = counts.wait;
+            document.getElementById('c-pending').innerText = counts.pending;
+
+            // Chuyển màn hình
+            document.getElementById('loader').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+        }
+
+        // Tự động load dữ liệu khi vào web
+        window.onload = fetchData;
+        
+        // Cứ 5 phút làm mới ngầm 1 lần
+        setInterval(() => {
+            Papa.parse(CSV_URL + '&t=' + new Date().getTime(), {
+                download: true, header: true, skipEmptyLines: true,
+                complete: function(results) { processData(results.data); updateTime(); }
+            });
+        }, 300000);
+    </script>
+</body>
+</html>
