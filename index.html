@@ -3,6 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Thêm 3 dòng này để chống GitHub Pages lưu cache -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
     <title>Báo Cáo Helpdesk Tổng Hợp</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -110,6 +116,9 @@
             updateTime();
             document.getElementById('loader').classList.remove('hidden');
             document.getElementById('dashboard').classList.add('hidden');
+            
+            // Xóa cờ render cũ trước khi tải dữ liệu mới
+            document.body.removeAttribute('data-render-status');
 
             Papa.parse(CSV_URL + '&t=' + new Date().getTime(), { 
                 download: true,
@@ -186,19 +195,16 @@
 
                 const s = (col) => row[col] && row[col].trim() !== '' ? row[col] : '-';
 
-                // --- HÀNG 1: THÔNG TIN CHÍNH (Có thể click để mở rộng ô Nội dung & hiện hàng phụ) ---
+                // --- HÀNG 1: THÔNG TIN CHÍNH ---
                 let mainRow = `
                     <tr class="hover:bg-blue-50/50 transition-colors cursor-pointer border-b border-gray-100" onclick="toggleDetail(${index})">
                         <td class="px-3 py-3 text-center text-blue-400 whitespace-nowrap">
                             <i class="fa-solid fa-chevron-down transition-transform" id="icon-${index}"></i>
                         </td>
-                        <!-- Cột Công ty: Font nhỏ (text-xs), in đậm nhẹ -->
                         <td class="px-3 py-3 text-xs font-semibold text-blue-900 max-w-[120px] truncate whitespace-nowrap" title="${s('Công ty/Khách sạn')}">${s('Công ty/Khách sạn')}</td>
                         
-                        <!-- Cột Người yêu cầu: Font nhỏ (text-xs) -->
                         <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${s('Người yêu cầu')}</td>
                         
-                        <!-- Ô Nội dung yêu cầu: Font nhỏ (text-xs), BỎ in đậm (text-gray-800 thay vì font-medium) -->
                         <td class="px-3 py-3 text-xs text-gray-800 max-w-[200px] md:max-w-[300px] truncate transition-all duration-300" id="desc-${index}" title="Bấm để xem chi tiết">
                             ${s('Nội dung yêu cầu')}
                         </td>
@@ -207,12 +213,10 @@
                         <td class="px-3 py-3 text-gray-500 text-[11px] whitespace-nowrap">${s('Thời gian CS phản hồi')}</td>
                         <td class="px-3 py-3 text-gray-500 text-[11px] whitespace-nowrap">${s('Thời gian kỹ thuật hoàn tất')}</td>
                         
-                        <!-- Cột Trạng thái: Font nhỏ hơn (text-[10px] thay vì text-[11px]) -->
                         <td class="px-3 py-3 text-center whitespace-nowrap">
                             <span class="px-2 py-1 rounded text-[10px] uppercase tracking-wide ${badgeClass}">${status || 'Trống'}</span>
                         </td>
                         
-                        <!-- Ô Đánh giá: Hẹp lại -->
                         <td class="px-2 py-3 font-medium text-orange-400 text-center whitespace-nowrap w-[80px]">
                             ${s('Đánh giá của KH') !== '-' ? `<i class="fa-solid fa-star text-[10px]"></i> <span class="text-xs">${s('Đánh giá của KH')}</span>` : '-'}
                         </td>
@@ -228,7 +232,6 @@
 
                 let detailRow = `
                     <tr id="detail-${index}" class="detail-row bg-slate-50/80 border-b border-gray-300">
-                        <!-- Colspan 9 để trải dài hết chiều ngang của bảng -->
                         <td colspan="9" class="p-0">
                             <div class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-[13px] text-gray-600 shadow-inner">
                                 <div class="space-y-2">
@@ -277,10 +280,7 @@
         
         // Cứ 5 phút làm mới ngầm 1 lần
         setInterval(() => {
-            Papa.parse(CSV_URL + '&t=' + new Date().getTime(), {
-                download: true, header: true, skipEmptyLines: true,
-                complete: function(results) { processData(results.data); updateTime(); }
-            });
+            fetchData(); // Thay đổi để chạy lại toàn bộ quy trình có gắn/xóa cờ
         }, 300000);
     </script>
 </body>
